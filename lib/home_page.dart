@@ -9,26 +9,28 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentIndex = 0;
   List<String> videoPaths = [];
   List<VideoPlayerController> controllers = [];
   Map<String, List<List<Offset>>> polygonMap = {};
 
-  final String serverIP = 'http://10.0.2.2:5000'; // 不用 const，放外面也行
+  final String serverIP = 'http://10.0.2.2:5000';
 
   @override
   void initState() {
     super.initState();
 
-    // 初始化影片清單
     videoPaths = [
       '$serverIP/video_feed/cam1.mp4',
       '$serverIP/video_feed/cam2.mp4',
     ];
 
-    PolygonDB.clearAll(); // 清除多邊形暫存資料
+    PolygonDB.clearAll();
 
-    for (String path in videoPaths) {
+    // 預先用空 controller 佔位，避免 index 錯亂
+    controllers = List.generate(videoPaths.length, (index) => VideoPlayerController.network(''));
+
+    for (int i = 0; i < videoPaths.length; i++) {
+      final path = videoPaths[i];
       final controller = VideoPlayerController.network(path);
 
       controller.initialize().then((_) async {
@@ -38,7 +40,7 @@ class _HomePageState extends State<HomePage> {
         final points = await PolygonDB.getPolygons(path);
         setState(() {
           polygonMap[path] = points;
-          controllers.add(controller);
+          controllers[i] = controller;
         });
       });
     }
@@ -47,9 +49,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     for (var controller in controllers) {
-      if (controller.value.isInitialized) {
-        controller.dispose();
-      }
+      controller.dispose();
     }
     super.dispose();
   }
@@ -71,8 +71,8 @@ class _HomePageState extends State<HomePage> {
                 ),
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child:
-                Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Text(title,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),

@@ -34,10 +34,12 @@ class _PolygonDrawPageState extends State<PolygonDrawPage> {
   void initState() {
     super.initState();
     screenshotController = ScreenshotController();
-    // 只取純檔名，排除路徑（兼容 Windows 路徑）
+
+    // 取出純影片檔名（不含路徑）
     videoName = widget.videoPath.split('/').last.split('\\').last;
 
-    _controller = VideoPlayerController.asset(widget.videoPath)
+    // 改成用網路影片串流
+    _controller = VideoPlayerController.network(widget.videoPath)
       ..initialize().then((_) async {
         setState(() {
           polygons = [[]];
@@ -48,7 +50,7 @@ class _PolygonDrawPageState extends State<PolygonDrawPage> {
 
         Timer.periodic(Duration(seconds: 2), (timer) async {
           if (!mounted || !_controller.value.isInitialized) return;
-          if (_isCapturing) return;  // 上一張截圖還沒完成就跳過
+          if (_isCapturing) return;
           _isCapturing = true;
 
           try {
@@ -282,4 +284,4 @@ class MultiPolygonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}Z
+}
