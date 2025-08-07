@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "936561383152",
+    "project_id": "forbidden-area-app",
+    "storage_bucket": "forbidden-area-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:936561383152:android:7f28895da99845e461d435",
+        "android_client_info": {
+          "package_name": "com.example.forbidden_area_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCs6pNypLsP5wEFvjJmX-teQtek2rw-1gA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

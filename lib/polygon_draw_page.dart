@@ -30,42 +30,80 @@ class _PolygonDrawPageState extends State<PolygonDrawPage> {
   late String videoName;
   bool _isCapturing = false; // 防止重複截圖
 
-  @override
-  void initState() {
-    super.initState();
-    screenshotController = ScreenshotController();
+@override
+void initState() {
+  super.initState();
+  screenshotController = ScreenshotController();
 
-    // 取出純影片檔名（不含路徑）
-    videoName = widget.videoPath.split('/').last.split('\\').last;
+  videoName = widget.videoPath.split('/').last.split('\\').last;
 
-    // 改成用網路影片串流
-    _controller = VideoPlayerController.network(widget.videoPath)
-      ..initialize().then((_) async {
-        setState(() {
-          polygons = [[]];
-          isPolygonLocked = [false];
-          _controller.setLooping(true);
-          _controller.play();
-        });
-
-        Timer.periodic(Duration(seconds: 2), (timer) async {
-          if (!mounted || !_controller.value.isInitialized) return;
-          if (_isCapturing) return;
-          _isCapturing = true;
-
-          try {
-            final imageBytes = await screenshotController.capture(pixelRatio: 1.5);
-            if (imageBytes != null) {
-              await sendFrameToServer(imageBytes);
-            }
-          } catch (e) {
-            print('截圖或傳送錯誤: $e');
-          }
-
-          _isCapturing = false;
-        });
+  _controller = VideoPlayerController.network(widget.videoPath)
+    ..initialize().then((_) async {
+      setState(() {
+        _controller.setLooping(true);
+        _controller.play();
       });
+
+      // 抓資料庫裡的多邊形
+      await _fetchPolygonsFromServer();
+
+      // 啟動定時截圖（可選）
+      Timer.periodic(Duration(seconds: 2), (timer) async {
+        if (!mounted || !_controller.value.isInitialized) return;
+        if (_isCapturing) return;
+        _isCapturing = true;
+
+        try {
+          final imageBytes = await screenshotController.capture(pixelRatio: 1.5);
+          if (imageBytes != null) {
+            await sendFrameToServer(imageBytes);
+          }
+        } catch (e) {
+          print('截圖或傳送錯誤: $e');
+        }
+
+        _isCapturing = false;
+      });
+    });
+}
+
+Future<void> _fetchPolygonsFromServer() async {
+  final url = Uri.parse('http://10.0.2.2:5000/get_polygon/$videoName');
+
+  try {
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['polygons'] != null) {
+        List<List<dynamic>> serverPolygons = List<List<dynamic>>.from(data['polygons']);
+        List<List<Offset>> loadedPolygons = [];
+
+        for (var poly in serverPolygons) {
+          List<Offset> points = [];
+          for (var point in poly) {
+            points.add(Offset(
+              (point['x'] as num).toDouble(),
+              (point['y'] as num).toDouble(),
+            ));
+          }
+          loadedPolygons.add(points);
+        }
+
+        setState(() {
+          polygons = loadedPolygons.isNotEmpty ? loadedPolygons : [[]];
+          isPolygonLocked = List.filled(polygons.length, false);
+          currentPolygonIndex = 0;
+        });
+      }
+    } else {
+      print('伺服器回傳錯誤: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('從伺服器抓多邊形資料錯誤: $e');
   }
+}
+
+
 
   @override
   void dispose() {
@@ -73,13 +111,25 @@ class _PolygonDrawPageState extends State<PolygonDrawPage> {
     super.dispose();
   }
 
-  void _resetPolygon() {
-    setState(() {
-      polygons = [[]];
-      isPolygonLocked = [false];
-      currentPolygonIndex = 0;
-    });
+void _resetPolygon() async {
+  setState(() {
+    polygons = [[]];
+    isPolygonLocked = [false];
+    currentPolygonIndex = 0;
+  });
+
+  final url = Uri.parse('http://10.0.2.2:5000/delete_polygon/$videoName');
+
+  try {
+    final response = await http.delete(url);
+    print(response.statusCode == 200
+        ? '✅ 已刪除資料庫的框選資料'
+        : '❌ 刪除失敗：${response.statusCode}');
+  } catch (e) {
+    print('❌ 刪除錯誤: $e');
   }
+}
+
 
   void _addNewPolygon() {
     setState(() {

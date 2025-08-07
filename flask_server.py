@@ -1,3 +1,4 @@
+# flask_server.py
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import os
@@ -9,6 +10,12 @@ import io
 from PIL import Image
 import matplotlib.path as mpltPath
 import re
+from google.cloud import firestore
+
+cred_path = "firebase_key.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_path
+db = firestore.Client()
+
 
 app = Flask(__name__)
 CORS(app)
@@ -31,22 +38,62 @@ def point_in_any_polygon(x, y, polygons):
             return True
     return False
 
+@app.route('/get_polygon/<video_name>', methods=['GET'])
+def get_polygon(video_name):
+    doc_ref = db.collection('fences').document(video_name)
+    doc = doc_ref.get()
+    if doc.exists:
+        data = doc.to_dict()
+        polygons_data = data.get('polygons', [])
+        # 把格式轉回原本的 List[List[{'x':..., 'y':...}]]
+        polygons = [poly['points'] for poly in polygons_data]
+        return jsonify({'polygons': polygons}), 200
+    else:
+        return jsonify({'polygons': []}), 200
+
+
+@app.route('/delete_polygon/<video_name>', methods=['DELETE'])
+def delete_polygon(video_name):
+    try:
+        db.collection('fences').document(video_name).delete()
+        return jsonify({'message': '已刪除'}), 200
+    except Exception as e:
+        return jsonify({'message': f'刪除失敗: {str(e)}'}), 500
+
+
+
 # 儲存多邊形資料路由
 @app.route('/save_polygon', methods=['POST'])
 def save_polygon():
     data = request.get_json()
+    print("收到資料:", data)
     if not data or 'video_name' not in data or 'polygons' not in data:
         return jsonify({'message': '缺少必要資料'}), 400
 
     video_name = data['video_name']
     polygons = data['polygons']
 
-    save_path = os.path.join(DATA_DIR, f'{video_name}.json')
-    with open(save_path, 'w', encoding='utf-8') as f:
-        json.dump(polygons, f, ensure_ascii=False, indent=2)
+    print(f"⚠️ 嘗試寫入 Firestore: {video_name}")
 
-    print(f'✅ 已儲存多邊形資料到 {save_path}')
+    try:
+        # 轉換格式，讓每個多邊形是 map 包裹點的 list
+        formatted_polygons = [
+            {'points': poly}  # 假設前端送的點格式已經是 {'x': ..., 'y': ...}
+            for poly in polygons
+        ]
+
+        db.collection('fences').document(video_name).set({
+            'video_name': video_name,
+            'polygons': formatted_polygons
+        })
+
+        print(f"✅ Firestore 寫入成功: {video_name}")
+    except Exception as e:
+        print(f"❌ Firestore 寫入錯誤: {e}")
+        return jsonify({'message': '儲存失敗', 'error': str(e)}), 500
+
     return jsonify({'message': '多邊形資料儲存成功'}), 200
+
 
 # 偵測入侵路由
 @app.route('/detect_intrusion', methods=['POST'])
@@ -55,13 +102,17 @@ def detect_intrusion():
         return jsonify({'alert': False, 'message': '缺少資料'}), 400
 
     video_name = request.form['video_name']
-    polygon_path = os.path.join(DATA_DIR, f'{video_name}.json')
-
-    if not os.path.exists(polygon_path):
+    # 直接從 Firestore 讀多邊形
+    doc_ref = db.collection('fences').document(video_name)
+    doc = doc_ref.get()
+    if not doc.exists:
         return jsonify({'alert': False, 'message': '找不到多邊形資料'}), 404
 
-    with open(polygon_path, 'r', encoding='utf-8') as f:
-        polygons = json.load(f)
+    polygons = doc.to_dict().get('polygons', [])
+    polygons_points = [poly.get('points', []) for poly in polygons]
+
+# 後面用 polygons_points
+
 
     # 將圖片轉為 OpenCV 格式
     image_file = request.files['image']
@@ -78,7 +129,7 @@ def detect_intrusion():
             x1, y1, x2, y2 = map(int, det.xyxy[0])
             center_x = (x1 + x2) // 2
             center_y = (y1 + y2) // 2
-            if point_in_any_polygon(center_x, center_y, polygons):
+            if point_in_any_polygon(center_x, center_y, polygons_points):
                 # ⚠️ 有人進入禁區
                 save_path = os.path.join(ALERT_FRAME_DIR, f'{video_name}_alert.jpg')
                 cv2.imwrite(save_path, img_cv)
