@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'polygon_db.dart';
 import 'polygon_draw_page.dart';
+import 'setting_page.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -11,6 +12,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<String> videoPaths = [];
   List<VideoPlayerController> controllers = [];
+  List<String> cameraNames = []; // 用來儲存攝影機名稱
   Map<String, List<List<Offset>>> polygonMap = {};
 
   final String serverIP = 'http://10.0.2.2:5000';
@@ -24,9 +26,10 @@ class _HomePageState extends State<HomePage> {
       '$serverIP/video_feed/cam2.mp4',
     ];
 
+    cameraNames = List.generate(videoPaths.length, (i) => 'Camera ${i + 1}');
+
     PolygonDB.clearAll();
 
-    // 預先用空 controller 佔位，避免 index 錯亂
     controllers = List.generate(videoPaths.length, (index) => VideoPlayerController.network(''));
 
     for (int i = 0; i < videoPaths.length; i++) {
@@ -54,9 +57,9 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Widget buildCameraCard(String title, VideoPlayerController controller) {
+  Widget buildCameraCard(int index, VideoPlayerController controller) {
     return Card(
-      margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -67,12 +70,12 @@ class _HomePageState extends State<HomePage> {
                 )
               : Container(
                   height: 200,
-                  child: Center(child: CircularProgressIndicator()),
+                  child: const Center(child: CircularProgressIndicator()),
                 ),
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Text(title,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Text(cameraNames[index],
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -92,45 +95,41 @@ class _HomePageState extends State<HomePage> {
                         ),
                       );
                     },
-                    icon: Icon(Icons.edit_location_alt),
-                    label: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text('標記'),
-                    ),
+                    icon: const Icon(Icons.edit_location_alt),
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('標記')),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      final updatedName = await Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => PolygonDrawPage(
+                          builder: (context) => SettingPage(
                             videoPath: controller.dataSource,
-                            viewOnly: true,
+                            initialName: cameraNames[index],
                           ),
                         ),
                       );
+                      if (updatedName != null && updatedName is String) {
+                        setState(() {
+                          cameraNames[index] = updatedName;
+                        });
+                      }
                     },
-                    icon: Icon(Icons.videocam),
-                    label: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text('查看'),
-                    ),
+                    icon: const Icon(Icons.videocam),
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('設定')),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
                       // TODO: 顯示異常紀錄
                     },
-                    icon: Icon(Icons.warning),
-                    label: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text('異常'),
-                    ),
+                    icon: const Icon(Icons.warning),
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('異常')),
                   ),
                 ),
               ],
@@ -145,14 +144,12 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('主頁面'),
+        title: const Text('主頁面'),
       ),
       body: ListView.builder(
         itemCount: controllers.length,
         itemBuilder: (context, index) {
-          final controller = controllers[index];
-          final title = 'Camera ${index + 1}';
-          return buildCameraCard(title, controller);
+          return buildCameraCard(index, controllers[index]);
         },
       ),
     );
