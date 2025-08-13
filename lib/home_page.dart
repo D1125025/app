@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'polygon_db.dart';
 import 'polygon_draw_page.dart';
 import 'setting_page.dart';
+import 'warning_page.dart';
+
 
 class HomePage extends StatefulWidget {
   @override
@@ -12,8 +13,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<String> videoPaths = [];
   List<VideoPlayerController> controllers = [];
-  List<String> cameraNames = []; // 用來儲存攝影機名稱
-  Map<String, List<List<Offset>>> polygonMap = {};
+  List<String> cameraNames = [];
 
   final String serverIP = 'http://10.0.2.2:5000';
 
@@ -28,21 +28,17 @@ class _HomePageState extends State<HomePage> {
 
     cameraNames = List.generate(videoPaths.length, (i) => 'Camera ${i + 1}');
 
-    PolygonDB.clearAll();
-
     controllers = List.generate(videoPaths.length, (index) => VideoPlayerController.network(''));
 
     for (int i = 0; i < videoPaths.length; i++) {
       final path = videoPaths[i];
       final controller = VideoPlayerController.network(path);
 
-      controller.initialize().then((_) async {
+      controller.initialize().then((_) {
         controller.setLooping(true);
         controller.play();
 
-        final points = await PolygonDB.getPolygons(path);
         setState(() {
-          polygonMap[path] = points;
           controllers[i] = controller;
         });
       });
@@ -96,7 +92,7 @@ class _HomePageState extends State<HomePage> {
                       );
                     },
                     icon: const Icon(Icons.edit_location_alt),
-                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('標記')),
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('查看')),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -124,14 +120,21 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: 顯示異常紀錄
-                    },
-                    icon: const Icon(Icons.warning),
-                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('異常')),
-                  ),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // 點擊異常按鈕，跳轉到警告紀錄頁
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const WarningRecordPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.warning),
+                  label: const FittedBox(fit: BoxFit.scaleDown, child: Text('異常')),
                 ),
+              ),
+
               ],
             ),
           ),
