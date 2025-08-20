@@ -1,11 +1,15 @@
+// home_page.dart
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'polygon_draw_page.dart';
 import 'setting_page.dart';
 import 'warning_page.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomePage extends StatefulWidget {
+  final String userId; // ⚠️ 新增 userId
+  const HomePage({Key? key, required this.userId}) : super(key: key);
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -26,9 +30,11 @@ class _HomePageState extends State<HomePage> {
       '$serverIP/video_feed/cam2.mp4',
     ];
 
+    // 預設 display_name
     cameraNames = List.generate(videoPaths.length, (i) => 'Camera ${i + 1}');
-
     controllers = List.generate(videoPaths.length, (index) => VideoPlayerController.network(''));
+
+    loadUserCameraSettings();
 
     for (int i = 0; i < videoPaths.length; i++) {
       final path = videoPaths[i];
@@ -51,6 +57,37 @@ class _HomePageState extends State<HomePage> {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  // 🔹 讀取 Firestore 設定
+  Future<void> loadUserCameraSettings() async {
+    for (int i = 0; i < videoPaths.length; i++) {
+      String camKey = videoPaths[i].split('/').last; // cam1.mp4
+      final docRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('cameras')
+          .doc(camKey);
+
+      final doc = await docRef.get();
+
+      if (!doc.exists) {
+        // 第一次登入：三個偵測項目全開、時間全天
+        await docRef.set({
+          'display_name': 'Camera ${i + 1}',
+          'detection': {
+            'wall_climb': {'enabled': true, 'time': '00:00-23:59'},
+            'fall': {'enabled': true, 'time': '00:00-23:59'},
+            'intrusion': {'enabled': true, 'time': '00:00-23:59'},
+          },
+        });
+        cameraNames[i] = 'Camera ${i + 1}';
+      } else {
+        final data = doc.data()!;
+        cameraNames[i] = data['display_name'] ?? 'Camera ${i + 1}';
+      }
+    }
+    setState(() {});
   }
 
   Widget buildCameraCard(int index, VideoPlayerController controller) {
@@ -99,18 +136,20 @@ class _HomePageState extends State<HomePage> {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () async {
-                      final updatedName = await Navigator.push(
+                      // ⚠️ 這裡改成傳 videoPath
+                      final updated = await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => SettingPage(
+                            userId: widget.userId,
                             videoPath: controller.dataSource,
                             initialName: cameraNames[index],
                           ),
                         ),
                       );
-                      if (updatedName != null && updatedName is String) {
+                      if (updated != null && updated is String) {
                         setState(() {
-                          cameraNames[index] = updatedName;
+                          cameraNames[index] = updated;
                         });
                       }
                     },
@@ -120,21 +159,23 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // 點擊異常按鈕，跳轉到警告紀錄頁
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const WarningRecordPage(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.warning),
-                  label: const FittedBox(fit: BoxFit.scaleDown, child: Text('異常')),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final camKey = controller.dataSource.split('/').last;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => WarningRecordPage(
+                            userId: widget.userId,
+                            cameraName: camKey,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.warning),
+                    label: const FittedBox(fit: BoxFit.scaleDown, child: Text('異常')),
+                  ),
                 ),
-              ),
-
               ],
             ),
           ),
