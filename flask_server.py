@@ -144,6 +144,7 @@ def intrusion_detection_thread(video_name):
         ret, frame = cap.read()
         if not ret:
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            time.sleep(1)
             continue
 
         fences = load_fences_by_video(video_name)

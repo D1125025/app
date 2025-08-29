@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'polygon_draw_page.dart';
+import 'fence_setting_page.dart';
+
 
 class SettingPage extends StatefulWidget {
   final String userId;
@@ -417,35 +419,49 @@ class _SettingPageState extends State<SettingPage> {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
+                        IconButton(
+                        icon: const Icon(Icons.settings),
+                        tooltip: '警告設定',
+                        onPressed: () async {
+                            await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => FenceSettingPage(cameraName: camKey,fenceName: fences[i]['name'],), // 跳到剛剛的設定頁
+                            ),
+                            );
+                            // TODO: 回來後要存使用者設定到 firestore 或 API
+                        },
+                        ),
+                        IconButton(
                         icon: const Icon(Icons.edit),
                         onPressed: () => _editFence(i),
-                      ),
-                      IconButton(
+                        ),
+                        IconButton(
                         icon: const Icon(Icons.delete),
                         onPressed: () async {
-                          final confirm = await showDialog<bool>(
+                            final confirm = await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('確認刪除'),
-                              content: Text('確定要刪除 ${fences[i]['name']} 嗎？'),
-                              actions: [
+                                title: const Text('確認刪除'),
+                                content: Text('確定要刪除 ${fences[i]['name']} 嗎？'),
+                                actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.pop(context, false),
-                                  child: const Text('取消'),
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('取消'),
                                 ),
                                 TextButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  child: const Text('刪除'),
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('刪除'),
                                 ),
-                              ],
+                                ],
                             ),
-                          );
-                          if (confirm == true) _deleteFence(i);
+                            );
+                            if (confirm == true) _deleteFence(i);
                         },
-                      ),
+                        ),
                     ],
-                  ),
+                    ),
+
                 ),
               ),
           ],
